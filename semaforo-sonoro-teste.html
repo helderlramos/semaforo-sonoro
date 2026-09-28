@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Semáforo Sonoro — Teste</title>
+<style>
+  :root{
+    --verde:#1e9e56; --laranja:#f39200; --vermelho:#d62828; --neutro:#2b2f36;
+    --txt:#ffffff; --painel:#1b1e23; --painel-txt:#e8eaed; --linha:#3a3f47;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--neutro);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,sans-serif;color:var(--txt)}
+  #ecra{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:2vh;background:var(--neutro);transition:background-color .5s}
+  body.verde #ecra{background:var(--verde)}
+  body.laranja #ecra{background:var(--laranja);color:#1a1a1a}
+  body.vermelho #ecra{background:var(--vermelho)}
+  body.alarme #ecra{animation:piscar .5s steps(1) infinite}
+  @keyframes piscar{50%{background:#fff;color:var(--vermelho)}}
+
+  #topo{position:absolute;top:2vh;left:3vw;right:3vw;display:flex;justify-content:flex-end;
+    font-size:clamp(14px,2.2vw,32px);font-weight:600;opacity:.9;font-variant-numeric:tabular-nums}
+  #rotulo{font-size:clamp(28px,6.5vw,120px);font-weight:800;text-align:center;line-height:1.1;padding:0 3vw}
+  #valor{font-size:clamp(22px,5.6vw,106px);font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+  #valor small{font-size:1em;font-weight:700;margin-left:.25em}
+  #barra{position:relative;width:80vw;height:3.2vh;min-height:14px;border-radius:99px;
+    background:rgba(0,0,0,.25);overflow:hidden}
+  #barraNivel{position:absolute;left:0;top:0;bottom:0;width:0;background:currentColor;opacity:.85;transition:width .15s}
+  .marca{position:absolute;top:0;bottom:0;width:3px;background:rgba(0,0,0,.55)}
+  #grafico{width:80vw;height:18vh}
+  #rodape{display:flex;gap:.6em 3.5vw;justify-content:center;align-items:baseline;flex-wrap:wrap;width:90vw;
+    font-size:clamp(16px,3vw,56px);font-weight:700;text-align:center;font-variant-numeric:tabular-nums}
+  #rodape .item{white-space:nowrap}
+  #rodape #rFrase{white-space:normal;font-style:italic}
+  #rodape .peq{font-size:.55em;font-weight:600;opacity:.85;margin-right:.35em}
+  #aviso{position:absolute;bottom:2vh;left:3vw;right:150px;width:max-content;max-width:calc(100vw - 3vw - 150px);font-size:clamp(12px,1.6vw,22px);font-weight:700;
+    background:rgba(0,0,0,.45);color:#fff;padding:.3em .7em;border-radius:8px;display:none}
+
+  #ip{position:absolute;bottom:4px;left:8px;font-size:13px;font-weight:500;opacity:.6;
+    font-variant-numeric:tabular-nums;pointer-events:none;display:none}
+  #botoes{position:absolute;bottom:2vh;right:2vw;display:flex;gap:10px;opacity:.35;transition:opacity .2s}
+  #botoes:hover{opacity:1}
+  .btn{background:rgba(0,0,0,.45);color:#fff;border:0;border-radius:10px;padding:10px 14px;
+    font-size:18px;cursor:pointer}
+  .btn:hover{background:rgba(0,0,0,.7)}
+
+  #inicio{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:var(--neutro);z-index:20;padding:16px}
+  #inicio .caixa{max-width:640px;text-align:center}
+  #inicio h1{font-size:clamp(26px,4vw,44px);margin:0 0 .4em}
+  #inicio p{color:#c9cdd3;line-height:1.5}
+  #btnIniciar{font-size:24px;padding:16px 36px;border-radius:14px;border:0;background:var(--verde);
+    color:#fff;font-weight:800;cursor:pointer;margin-top:12px}
+  #erro{color:#ff8a8a;font-weight:600;margin-top:14px;white-space:pre-line}
+
+  #painel{position:fixed;top:0;right:0;bottom:0;width:min(420px,100vw);background:var(--painel);
+    color:var(--painel-txt);z-index:30;transform:translateX(100%);transition:transform .25s;
+    overflow-y:auto;padding:18px 18px 40px;box-shadow:-8px 0 30px rgba(0,0,0,.4)}
+  #painel.aberto{transform:none}
+  #painel h2{margin:0 0 6px;font-size:20px}
+  #painel h3{margin:22px 0 8px;font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:#9aa0a6}
+  #painel label{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:8px 0;font-size:14px}
+  #painel input[type=number]{width:90px}
+  #painel input[type=text]{width:200px}
+  #painel input,#painel select{background:#2a2e35;color:#fff;border:1px solid var(--linha);
+    border-radius:6px;padding:6px 8px;font-size:14px}
+  #painel select{max-width:230px}
+  #painel .linha{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  #painel .pbtn{background:#3b82f6;color:#fff;border:0;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:14px}
+  #painel .pbtn.sec{background:#3a3f47}
+  #painel .info{font-size:13px;color:#b5bac1;line-height:1.5;background:#23262c;border-radius:8px;padding:10px}
+  #painel .info b{color:#fff}
+  #fechar{float:right;background:none;border:0;color:#fff;font-size:26px;cursor:pointer;line-height:1}
+  .ok{color:#6ee7a0}.mau{color:#ff8a8a}
+
+  /* Ecrã "Fazer silêncio" (fica por cima de tudo, menos das definições) */
+  #silencio{position:fixed;inset:0;z-index:25;display:none;flex-direction:column;align-items:center;
+    justify-content:center;gap:4vh;background:var(--vermelho);color:#fff;text-align:center;padding:0 4vw;
+    animation:piscarSil 1s steps(1) infinite}
+  body.silencio #silencio{display:flex}
+  @keyframes piscarSil{50%{background:#fff;color:var(--vermelho)}}
+  #silTxt{font-size:clamp(40px,11vw,220px);font-weight:900;line-height:1.05}
+  #silCont{font-size:clamp(36px,9vw,180px);font-weight:800;font-variant-numeric:tabular-nums}
+
+  /* Modo telemóvel (?remoto=1) */
+  html.remoto, body.remoto{overflow:auto;height:auto;background:#15171b}
+  body.remoto #ecra, body.remoto #inicio, body.remoto #painel, body.remoto #silencio{display:none !important}
+  #remoto{display:none;max-width:560px;margin:0 auto;padding:14px 14px 60px;color:#e8eaed;font-size:16px}
+  body.remoto #remoto{display:block}
+  #remoto h1{font-size:22px;margin:6px 0 12px}
+  #remoto h2{font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:#9aa0a6;margin:22px 0 6px}
+  #remoto .campo{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #2a2e35}
+  #remoto .campo span{flex:1}
+  #remoto input,#remoto select{font-size:16px;background:#2a2e35;color:#fff;border:1px solid #3a3f47;border-radius:8px;padding:8px 10px}
+  #remoto input[type=number]{width:96px}
+  #remoto input[type=text]{width:55%}
+  #remoto input[type=checkbox]{width:26px;height:26px}
+  #remoto input[type=range]{width:50%}
+  #remoto button{font-size:17px;border:0;border-radius:12px;padding:14px 16px;background:#3a3f47;color:#fff;cursor:pointer}
+  #remoto button.prim{background:#1e9e56;font-weight:700}
+  #remoto .botoes{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+  #remoto .estadoCaixa{border-radius:14px;padding:14px;background:#2b2f36;font-size:18px;font-weight:700}
+  #remoto .estadoCaixa.verde{background:#1e9e56}#remoto .estadoCaixa.laranja{background:#f39200;color:#1a1a1a}
+  #remoto .estadoCaixa.vermelho{background:#d62828}
+  #remoto .nota{font-size:13px;color:#9aa0a6;margin-top:6px}
+  #remoto .fixo{position:sticky;bottom:0;background:#15171b;padding:10px 0}
+  #remotoMsg{min-height:1.3em;margin-top:8px;font-weight:600}
+</style>
+</head>
+<body class="neutro">
+
+<div id="ecra">
+  <div id="topo"><span id="estat"></span></div>
+  <div id="rotulo">—</div>
+  <div id="valor">--<small>dB</small></div>
+  <div id="barra"><div id="barraNivel"></div><div class="marca" id="marcaL"></div><div class="marca" id="marcaV"></div></div>
+  <canvas id="grafico"></canvas>
+  <div id="rodape">
+    <span class="item" id="rFrase"></span>
+    <span class="item" id="rContador"><span class="peq" id="rContLbl"></span><span id="rContVal"></span><span class="peq" id="rContExtra" style="margin-left:.35em;margin-right:0"></span></span>
+    <span class="item" id="rHora"><span class="peq">Hora</span><span id="rHoraVal"></span></span>
+  </div>
+  <div id="aviso"></div>
+  <div id="ip"></div>
+  <div id="botoes">
+    <button class="btn" id="btnEcra" title="Ecrã inteiro (F)">⛶</button>
+    <button class="btn" id="btnDef" title="Definições (S)">⚙</button>
+  </div>
+</div>
+
+<div id="silencio"><div id="silTxt">Fazer silêncio</div><div id="silCont">5:00</div></div>
+<div id="remoto"></div>
+
+<div id="inicio">
+  <div class="caixa">
+    <h1>Semáforo Sonoro — teste</h1>
+    <p>Esta página mede o ruído através do microfone deste computador e mostra verde, laranja ou vermelho.
+       O som é apenas analisado em tempo real: <b>nada é gravado nem enviado</b>.</p>
+    <p>Ao carregar em Iniciar, o browser vai pedir autorização para usar o microfone.</p>
+    <button id="btnIniciar">Iniciar medição</button>
+    <div id="erro"></div>
+  </div>
+</div>
+
+<aside id="painel" aria-label="Definições">
+  <button id="fechar" title="Fechar (Esc)">×</button>
+  <h2>Definições</h2>
+
+  <h3>Medição atual</h3>
+  <div class="info" id="infoMedicao">—</div>
+
+  <h3>Microfone</h3>
+  <label>Dispositivo <select id="selDisp"></select></label>
+  <div class="info" id="infoMic">—</div>
+
+  <h3>Calibração</h3>
+  <label>Compensação (dB) <input type="number" step="0.1" id="offset"></label>
+  <div class="linha" style="margin-top:6px">
+    <input type="number" step="0.1" id="refSono" placeholder="ex.: 62.5" style="width:110px">
+    <button class="pbtn" id="btnCalibrar">Calibrar com este valor</button>
+    <button class="pbtn sec" id="btnReporCal">Repor calibração</button>
+  </div>
+  <div class="info" style="margin-top:8px">
+    Coloca o sonómetro (ou a app do telemóvel, em dBA) junto ao microfone, com um ruído constante
+    (ex.: conversa ou música). Escreve o valor que o sonómetro mostra e carrega em <b>Calibrar</b>.
+    Depois disso, <b>não alteres o volume do microfone</b> no sistema.
+  </div>
+  <label style="margin-top:10px">Ponderação
+    <select id="pond"><option value="A">dB(A) — recomendado</option><option value="Z">dB(Z) — sem ponderação</option></select>
+  </label>
+  <label>Média (segundos) <input type="number" step="0.5" min="0.5" max="30" id="janela"></label>
+
+  <h3>Limites</h3>
+  <label>Laranja a partir de (dB) <input type="number" step="1" id="limLaranja"></label>
+  <label>Vermelho a partir de (dB) <input type="number" step="1" id="limVermelho"></label>
+  <label>Margem para descer (dB) <input type="number" step="0.5" min="0" id="histerese"></label>
+
+  <h3>Alarme</h3>
+  <label>Tocar após (s) em vermelho <input type="number" step="1" min="0" id="atrasoAlarme"></label>
+  <label>Ecrã a piscar durante (s) <input type="number" step="1" min="1" id="duracaoAlarme"></label>
+  <label>Pausa entre alarmes (s) <input type="number" step="1" min="0" id="pausaAlarme"></label>
+
+  <h3>Ecrã "Fazer silêncio"</h3>
+  <label>Mostrar ecrã "Fazer silêncio" no alarme <input type="checkbox" id="silencioAtivo"></label>
+  <label>Texto <input type="text" id="txtSilencio"></label>
+  <label>Duração (min) <input type="number" step="0.5" min="0.5" max="60" id="minutosSilencio"></label>
+  <div class="info">Quando o alarme dispara, este ecrã tapa tudo, a piscar, com a contagem por baixo.
+    Se voltar a haver barulho durante a contagem, o alarme toca de novo e a contagem recomeça
+    (a "Pausa entre alarmes" não se aplica durante a contagem). Tecla <b>C</b> cancela.</div>
+
+  <h3>Som do alarme</h3>
+  <label>Tocar som nas colunas <input type="checkbox" id="somTeste"></label>
+  <label>Som <select id="somAlarme">
+    <option value="carrilhao">Carrilhão 3 notas (aviso) — recomendado</option>
+    <option value="dingdong">Ding-dong</option>
+    <option value="marimba">Marimba (arpejo)</option>
+    <option value="sino">Sino suave</option>
+    <option value="taca">Taça tibetana</option>
+    <option value="gongo">Gongo</option>
+    <option value="ficheiro">Ficheiro de áudio próprio…</option>
+    <option value="sirene">Sirene (não recomendado)</option>
+  </select></label>
+  <div id="blocoFicheiro" style="display:none">
+    <label>Ficheiro <input type="file" accept="audio/*" id="ficheiroSom" style="width:200px"></label>
+    <div class="info" id="infoFicheiro">Nenhum ficheiro escolhido.</div>
+  </div>
+  <label>Repetições do som <input type="number" step="1" min="1" max="20" id="repeticoes"></label>
+  <label>Intervalo entre repetições (s) <input type="number" step="0.5" min="0" id="intervaloRep"></label>
+  <label>Volume <span class="linha"><input type="range" min="0" max="100" step="1" id="volumeAlarme" style="width:150px"><span id="volumeTxt">50%</span></span></label>
+  <div class="info" id="infoSom">—</div>
+  <div class="linha" style="margin:10px 0">
+    <button class="pbtn sec" id="btnOuvir">🔊 Ouvir som</button>
+    <button class="pbtn" id="btnTestarAlarme">▶ Testar alarme</button>
+    <button class="pbtn sec" id="btnPararAlarme">■ Parar</button>
+  </div>
+  <div class="info">"Ouvir som" toca o som uma vez. "Testar alarme" simula um alarme completo (ecrã a piscar + som
+    com as repetições), mesmo que "Tocar som" esteja desligado, e não conta nas estatísticas.<br><br>
+    Enquanto o som toca (e durante mais 1 segundo), <b>a medição fica em pausa</b>, para o microfone não
+    captar o próprio alarme. A sirene de 12V será ligada mais tarde através do ESP32.</div>
+
+  <h3>Textos no ecrã</h3>
+  <label>Verde <input type="text" id="txtVerde"></label>
+  <label>Laranja <input type="text" id="txtLaranja"></label>
+  <label>Vermelho <input type="text" id="txtVermelho"></label>
+  <label>Mostrar gráfico <input type="checkbox" id="mostrarGrafico"></label>
+  <label>Duração do gráfico (min) <input type="number" step="1" min="1" max="180" id="minGrafico"></label>
+  <label>Mostrar estatísticas <input type="checkbox" id="mostrarEstat"></label>
+
+  <h3>Por baixo do gráfico</h3>
+  <label>Mostrar frase <input type="checkbox" id="mostrarFrase"></label>
+  <label>Frase <input type="text" id="frase"></label>
+  <label style="margin-top:14px">Mostrar contador <input type="checkbox" id="mostrarContador"></label>
+  <label>Contar até às <input type="time" id="horaAlvo"></label>
+  <label>Texto antes do contador <input type="text" id="txtContador"></label>
+  <label>Texto quando termina <input type="text" id="txtFimContador"></label>
+  <label>Acrescentar tempo quando o alarme dispara <input type="checkbox" id="acrescentarTempo"></label>
+  <label>Minutos a acrescentar por alarme <input type="number" step="0.5" min="0" id="minutosExtra"></label>
+  <div class="linha" style="justify-content:space-between">
+    <span id="infoExtra" style="font-size:14px">Tempo extra hoje: 0 min</span>
+    <button class="pbtn sec" id="btnReporExtra">Repor tempo extra</button>
+  </div>
+  <div class="info" style="margin-top:8px">Cada alarme real (não os testes) acrescenta este tempo à hora do contador,
+    enquanto a contagem ainda não terminou. O tempo extra volta a zero no dia seguinte, quando mudas a hora
+    ou quando carregas em "Repor tempo extra".</div>
+  <label style="margin-top:14px">Mostrar hora atual <input type="checkbox" id="mostrarHora"></label>
+
+  <h3>Outros</h3>
+  <label>Mostrar IP do computador <input type="checkbox" id="mostrarIP"></label>
+  <div class="info" style="margin-bottom:10px">O IP aparece em letra pequena no canto inferior esquerdo (útil para ligar por SSH). Atalho: <b>I</b>.</div>
+  <div class="linha">
+    <button class="pbtn sec" id="btnReporEstat">Repor estatísticas</button>
+    <button class="pbtn sec" id="btnReporDef">Repor definições</button>
+  </div>
+  <div class="info" style="margin-top:10px">"Repor definições" repõe tudo exceto a calibração do microfone
+    (para isso usa "Repor calibração", na secção Calibração).</div>
+  <div class="info" style="margin-top:10px">Atalhos: <b>S</b> definições · <b>F</b> ecrã inteiro · <b>T</b> testar/parar alarme · <b>C</b> cancelar "Fazer silêncio" · <b>I</b> mostrar/esconder IP · <b>Esc</b> fechar.<br>
+    <span id="infoGravacao">As definições ficam guardadas neste browser.</span><br>
+    Versão da página: <b id="versaoTxt"></b></div>
+</aside>
+
+<script>
+/* =====================================================================
+   Semáforo Sonoro — uma só página com três modos:
+     (normal)    ecrã do semáforo (quiosque)
+     ?remoto=1   definições pelo telemóvel (servida pelo PC, com PIN)
+     ?migrar=1   passa as definições antigas (guardadas no browser) para o PC
+   ===================================================================== */
+const VERSAO = '2026-09-29';
+const CHAVE = 'semaforo-sonoro-cfg-v1';        // NUNCA mudar (as definições gravadas usam este nome)
+const CHAVE_AUDIO = 'semaforo-sonoro-audio-v1';
+const CHAVE_EXTRA = 'semaforo-sonoro-extra-v1';
+const PARAMS = new URLSearchParams(location.search);
+const COM_SERVIDOR = location.protocol === 'http:' || location.protocol === 'https:';
+const MODO = PARAMS.get('remoto') === '1' ? 'remoto' : PARAMS.get('migrar') === '1' ? 'migrar' : 'ecra';
+
+/* ---------- Modo migrar: envia as definições antigas ao servidor local e termina ---------- */
+if (MODO === 'migrar'){
+  let dados = {};
+  try {
+    dados = {
+      cfg: JSON.parse(localStorage.getItem(CHAVE) || 'null'),
+      audio: JSON.parse(localStorage.getItem(CHAVE_AUDIO) || 'null'),
+      extra: JSON.parse(localStorage.getItem(CHAVE_EXTRA) || 'null')
+    };
+  } catch(e){}
+  fetch('http://127.0.0.1:' + (PARAMS.get('porta') || '80') + '/api/migrar', {
+    method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(dados)
+  }).then(() => { document.title = 'migrado'; }).catch(() => { document.title = 'erro'; });
+}
+</script>
+
+<script>
+(() => {
+'use strict';
+if (MODO !== 'ecra') return;
+
+/* ---------- Definições ---------- */
+const DEF = {
+  offset: 100, pond: 'A', janela: 2,
+  limLaranja: 65, limVermelho: 75, histerese: 3,
+  atrasoAlarme: 3, duracaoAlarme: 5, pausaAlarme: 20, somTeste: false, volumeAlarme: 50,
+  somAlarme: 'carrilhao', repeticoes: 2, intervaloRep: 1,
+  txtVerde: 'Muito bem!', txtLaranja: 'Atenção ao barulho', txtVermelho: 'Demasiado barulho!',
+  mostrarGrafico: true, mostrarEstat: true, dispositivo: '',
+  mostrarFrase: true, frase: 'Almoça sem pressa',
+  mostrarContador: true, horaAlvo: '13:00', txtContador: 'Faltam', txtFimContador: 'Terminou',
+  acrescentarTempo: true, minutosExtra: 1,
+  mostrarHora: true,
+  mostrarIP: true,
+  minGrafico: 60,
+  silencioAtivo: true, txtSilencio: 'Fazer silêncio', minutosSilencio: 5
+};
+let cfg = carregar();
+function carregar(){
+  try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem(CHAVE) || '{}')); }
+  catch(e){ return Object.assign({}, DEF); }
+}
+function guardarLocal(){ try { localStorage.setItem(CHAVE, JSON.stringify(cfg)); } catch(e){} }
+
+/* Com o servidor local (PC Debian), as definições ficam também num ficheiro no PC,
+   partilhado com a página do telemóvel. Sem servidor (ex.: aberto no Windows), só no browser. */
+let revServidor = 0, envioPendente = null, servidorOK = false;
+function guardar(){
+  guardarLocal();
+  if (!COM_SERVIDOR) return;
+  clearTimeout(envioPendente);
+  envioPendente = setTimeout(async () => {
+    try {
+      const r = await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ cfg }) });
+      if (r.ok){ const j = await r.json(); revServidor = j.rev; }
+    } catch(e){}
+  }, 400);
+}
+
+const $ = id => document.getElementById(id);
+
+/* ---------- Áudio ---------- */
+const BLOCO_S = 0.1;               // cada bloco de medição = 100 ms
+let ctx = null, stream = null, fonte = null, nos = [], medidor = null;
+let blocos = [];                    // {ms, pico}
+let dbfsAtual = -Infinity, dbAtual = NaN, picoRecente = 0, ultimoBloco = 0;
+
+const WORKLET = `
+class Medidor extends AudioWorkletProcessor {
+  constructor(){ super(); this.s=0; this.n=0; this.p=0; this.alvo=Math.round(sampleRate*${BLOCO_S}); }
+  process(inputs){
+    const inp = inputs[0];
+    if (inp && inp.length){
+      const w = inp[0], r = inp[1] || inp[0];
+      for (let i=0;i<w.length;i++){ const v=w[i]; this.s+=v*v; const a=r[i]<0?-r[i]:r[i]; if(a>this.p) this.p=a; }
+      this.n += w.length;
+      if (this.n >= this.alvo){ this.port.postMessage({ms:this.s/this.n, pico:this.p}); this.s=0; this.n=0; this.p=0; }
+    }
+    return true;
+  }
+}
+registerProcessor('medidor', Medidor);`;
+
+/* Filtro de ponderação A: 3 secções de 2.ª ordem (transformada bilinear) */
+function seccoesA(fs){
+  const w = [20.598997, 107.65265, 737.86223, 12194.217].map(f => 2*Math.PI*f);
+  const K = 2*fs, a = x => K + x, b = x => x - K;
+  const S = [
+    { ff:[K*K, -2*K*K, K*K], fb:[a(w[0])**2, 2*a(w[0])*b(w[0]), b(w[0])**2] },
+    { ff:[K*K, -2*K*K, K*K], fb:[a(w[1])*a(w[2]), a(w[1])*b(w[2]) + b(w[1])*a(w[2]), b(w[1])*b(w[2])] },
+    { ff:[1, 2, 1],          fb:[a(w[3])**2, 2*a(w[3])*b(w[3]), b(w[3])**2] }
+  ];
+  return S.map(s => ({ ff: s.ff.map(v => v/s.fb[0]), fb: s.fb.map(v => v/s.fb[0]) }));
+}
+
+async function iniciar(){
+  $('erro').textContent = '';
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    $('erro').textContent = 'Este browser não permite aceder ao microfone. Usa o Chrome/Chromium ou o Firefox.';
+    return;
+  }
+  try {
+    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+    await ctx.resume();
+    await abrirMicrofone();
+    carregarFicheiroGuardado();
+    $('inicio').style.display = 'none';
+    pedirWakeLock();
+  } catch(e){
+    console.error(e);
+    $('erro').textContent = 'Não foi possível usar o microfone:\n' + (e && e.message ? e.message : e) +
+      '\n\nConfirma que autorizaste o microfone e que ele está ligado.';
+  }
+}
+
+async function abrirMicrofone(){
+  fecharMicrofone();
+  const audio = { echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:1 };
+  if (cfg.dispositivo) audio.deviceId = { exact: cfg.dispositivo };
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio });
+  } catch(e){
+    if (cfg.dispositivo && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError')){
+      cfg.dispositivo = ''; guardar(); delete audio.deviceId;
+      stream = await navigator.mediaDevices.getUserMedia({ audio });
+    } else throw e;
+  }
+  const faixa = stream.getAudioTracks()[0];
+  faixa.addEventListener('ended', () => mostrarAviso('O microfone foi desligado. Volta a ligá-lo e escolhe-o nas definições.', true));
+  fonte = ctx.createMediaStreamSource(stream);
+  await montarCadeia();
+  await listarDispositivos();
+  mostrarInfoMic();
+}
+
+function fecharMicrofone(){
+  nos.forEach(n => { try { n.disconnect(); } catch(e){} });
+  nos = [];
+  if (fonte){ try { fonte.disconnect(); } catch(e){} fonte = null; }
+  if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+  blocos = [];
+}
+
+async function montarCadeia(){
+  nos.forEach(n => { try { n.disconnect(); } catch(e){} });
+  nos = [];
+  try { fonte.disconnect(); } catch(e){}
+  blocos = [];
+
+  const juntar = ctx.createChannelMerger(2);
+  nos.push(juntar);
+
+  // canal 0: sinal ponderado (para o nível); canal 1: sinal original (para detetar saturação)
+  if (cfg.pond === 'A'){
+    let anterior = fonte, ganho1k = 1;
+    const f = new Float32Array([1000]), mag = new Float32Array(1), fase = new Float32Array(1);
+    for (const s of seccoesA(ctx.sampleRate)){
+      const iir = ctx.createIIRFilter(s.ff, s.fb);
+      iir.getFrequencyResponse(f, mag, fase); ganho1k *= mag[0];
+      anterior.connect(iir); anterior = iir; nos.push(iir);
+    }
+    const norm = ctx.createGain(); norm.gain.value = 1/ganho1k; nos.push(norm);
+    anterior.connect(norm); norm.connect(juntar, 0, 0);
+  } else {
+    fonte.connect(juntar, 0, 0);
+  }
+  fonte.connect(juntar, 0, 1);
+
+  const mudo = ctx.createGain(); mudo.gain.value = 0; nos.push(mudo);
+
+  if (ctx.audioWorklet && !medidor){
+    try {
+      try {
+        await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], {type:'application/javascript'})));
+      } catch(e1){
+        await ctx.audioWorklet.addModule('data:application/javascript;charset=utf-8,' + encodeURIComponent(WORKLET));
+      }
+      medidor = 'worklet';
+    } catch(e){ console.warn('AudioWorklet indisponível, a usar alternativa', e); medidor = 'script'; }
+  } else if (!medidor) medidor = 'script';
+
+  if (medidor === 'worklet'){
+    const node = new AudioWorkletNode(ctx, 'medidor', { numberOfInputs:1, numberOfOutputs:1,
+      channelCount:2, channelCountMode:'explicit', channelInterpretation:'discrete' });
+    node.port.onmessage = ev => novoBloco(ev.data.ms, ev.data.pico);
+    juntar.connect(node); node.connect(mudo); nos.push(node);
+  } else {
+    const sp = ctx.createScriptProcessor(4096, 2, 1);
+    let s=0, n=0, p=0; const alvo = Math.round(ctx.sampleRate*BLOCO_S);
+    sp.onaudioprocess = ev => {
+      const w = ev.inputBuffer.getChannelData(0), r = ev.inputBuffer.getChannelData(1);
+      for (let i=0;i<w.length;i++){ s+=w[i]*w[i]; const a=Math.abs(r[i]); if(a>p) p=a; }
+      n += w.length;
+      if (n >= alvo){ novoBloco(s/n, p); s=0; n=0; p=0; }
+    };
+    juntar.connect(sp); sp.connect(mudo); nos.push(sp);
+  }
+  mudo.connect(ctx.destination);
+}
+
+async function listarDispositivos(){
+  const sel = $('selDisp');
+  const lista = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
+  const atual = stream ? stream.getAudioTracks()[0].getSettings().deviceId : '';
+  sel.innerHTML = '';
+  lista.forEach((d, i) => {
+    const o = document.createElement('option');
+    o.value = d.deviceId; o.textContent = d.label || ('Microfone ' + (i+1));
+    if (d.deviceId === atual) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+function mostrarInfoMic(){
+  if (!stream){ $('infoMic').textContent = '—'; return; }
+  const t = stream.getAudioTracks()[0], s = t.getSettings();
+  const sim = v => v === undefined ? '<span>desconhecido</span>' : (v ? '<span class="mau">ligado</span>' : '<span class="ok">desligado</span>');
+  $('infoMic').innerHTML =
+    '<b>' + (t.label || 'Microfone') + '</b><br>' +
+    'Taxa de amostragem: ' + ctx.sampleRate + ' Hz<br>' +
+    'Ganho automático: ' + sim(s.autoGainControl) + '<br>' +
+    'Supressão de ruído: ' + sim(s.noiseSuppression) + '<br>' +
+    'Cancelamento de eco: ' + sim(s.echoCancellation) + '<br>' +
+    '<small>Tudo deve estar "desligado". Isto só controla o browser: confirma também no sistema (pavucontrol/alsamixer) que o ganho está fixo.</small>';
+}
+
+/* ---------- Cálculo do nível ---------- */
+function novoBloco(ms, pico){
+  const agora = performance.now();
+  ultimoBloco = agora;
+  if (medicaoPausada || agora < retomarEm) return;   // alarme a tocar: ignora o microfone
+  blocos.push({ ms, pico });
+  const max = Math.max(1, Math.round(cfg.janela / BLOCO_S));
+  while (blocos.length > max) blocos.shift();
+  let soma = 0, p = 0;
+  for (const b of blocos){ soma += b.ms; if (b.pico > p) p = b.pico; }
+  const media = soma / blocos.length;
+  dbfsAtual = media > 0 ? 10*Math.log10(media) + 3.0103 : -Infinity; // seno em escala total = 0 dBFS
+  dbAtual = dbfsAtual + Number(cfg.offset);
+  picoRecente = p;
+}
+
+/* ---------- Estado, alarme, estatísticas ---------- */
+let estado = 'neutro', vermelhoDesde = 0, alarmeAte = 0, pausaAte = 0, alarmeAtivo = false, alarmeTeste = false;
+let medicaoPausada = false, retomarEm = 0;   // pausa da medição enquanto o som do alarme toca
+/* Tempo extra acrescentado ao contador pelos alarmes (guardado por dia) */
+const hoje = () => { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate(); };
+let extra = { data: hoje(), s: 0 };
+try { const o = JSON.parse(localStorage.getItem(CHAVE_EXTRA) || '{}'); if (o.data === hoje()) extra = { data: o.data, s: Number(o.s) || 0 }; } catch(e){}
+function guardarExtra(){ try { localStorage.setItem(CHAVE_EXTRA, JSON.stringify(extra)); } catch(e){} }
+function reporExtra(){ extra = { data: hoje(), s: 0 }; guardarExtra(); }
+function horaFimContador(){
+  const [h, m] = String(cfg.horaAlvo || '').split(':').map(Number);
+  if (!isFinite(h) || !isFinite(m)) return null;
+  if (extra.data !== hoje()) reporExtra();
+  const alvo = new Date(); alvo.setHours(h, m, 0, 0);
+  return new Date(alvo.getTime() + extra.s*1000);
+}
+function fmtExtra(s){
+  const m = Math.floor(s/60), r = Math.round(s%60);
+  return r ? `${m}:${String(r).padStart(2,'0')} min` : `${m} min`;
+}
+const ganhoAlarme = () => Math.max(0, Math.min(100, Number(cfg.volumeAlarme))) / 100;
+const est = { inicio: 0, tempo: { verde:0, laranja:0, vermelho:0 }, max: -Infinity, alarmes: 0 };
+const historico = [];               // [{t, db}] um ponto por segundo (média), guardado durante "Duração do gráfico"
+const histS = () => Math.max(1, Math.min(180, Number(cfg.minGrafico) || 60)) * 60;
+let acumHist = { t0: 0, soma: 0, n: 0 };   // acumula as medições de 1 segundo
+
+function calcularEstado(db){
+  const L = Number(cfg.limLaranja), V = Number(cfg.limVermelho), h = Number(cfg.histerese);
+  if (db >= V) return 'vermelho';
+  if (estado === 'vermelho' && db > V - h) return 'vermelho';
+  if (db >= L) return 'laranja';
+  if ((estado === 'laranja' || estado === 'vermelho') && db > L - h) return 'laranja';
+  return 'verde';
+}
+
+/* ---------- Sons do alarme (gerados pela própria página) ---------- */
+// Cada som recebe o destino, o instante de início e uma lista onde regista os osciladores (para os poder parar).
+function nota(dest, t0, freq, dur, parciais, amp, ataque, nos){
+  for (const [mult, a] of parciais){
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.value = freq * mult;
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(amp * a, t0 + ataque);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(dest); o.start(t0); o.stop(t0 + dur + 0.05);
+    nos.push(o);
+  }
+}
+const SONS = {
+  carrilhao: { dur: 2.4, tocar(d, t, n){   // dó-mi-sol ascendente, tipo aviso de aeroporto
+    [523.25, 659.25, 783.99].forEach((f, i) => nota(d, t + i*0.4, f, 1.6, [[1,1],[2,0.25],[3,0.08]], 0.45, 0.01, n)); } },
+  dingdong:  { dur: 2.0, tocar(d, t, n){
+    [659.25, 523.25].forEach((f, i) => nota(d, t + i*0.5, f, 1.5, [[1,1],[2,0.3],[3,0.1]], 0.5, 0.01, n)); } },
+  marimba:   { dur: 1.1, tocar(d, t, n){
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => nota(d, t + i*0.15, f, 0.6, [[1,1],[4,0.12],[10,0.03]], 0.55, 0.004, n)); } },
+  sino:      { dur: 2.6, tocar(d, t, n){
+    nota(d, t, 880, 2.5, [[1,1],[2.76,0.35],[5.4,0.15],[8.93,0.06]], 0.45, 0.005, n); } },
+  taca:      { dur: 5.0, tocar(d, t, n){   // duas frequências muito próximas criam a "ondulação" típica
+    nota(d, t, 440, 5, [[1,1],[2.71,0.25],[5.1,0.08]], 0.35, 0.08, n);
+    nota(d, t, 442.5, 5, [[1,1]], 0.3, 0.08, n); } },
+  gongo:     { dur: 4.0, tocar(d, t, n){
+    nota(d, t, 130, 4, [[1,1],[1.52,0.6],[2.13,0.45],[2.87,0.3],[3.92,0.2],[5.3,0.1]], 0.4, 0.015, n); } },
+  sirene:    { dur: 3.0, tocar(d, t, n){   // o som original: onda quadrada a 880 Hz a oscilar ±300 Hz, 3 vezes por segundo
+    const o = ctx.createOscillator(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain();
+    o.type = 'square'; o.frequency.value = 880; g.gain.value = 0.3;
+    lfo.frequency.value = 3; lg.gain.value = 300; lfo.connect(lg); lg.connect(o.frequency);
+    o.connect(g); g.connect(d); o.start(t); lfo.start(t); o.stop(t + 3); lfo.stop(t + 3);
+    n.push(o, lfo); } },
+  ficheiro:  { get dur(){ return bufferFicheiro ? bufferFicheiro.duration : 0; }, tocar(d, t, n){
+    if (!bufferFicheiro) return;
+    const s = ctx.createBufferSource(); s.buffer = bufferFicheiro; s.connect(d); s.start(t); n.push(s); } }
+};
+const somEscolhido = () => (cfg.somAlarme === 'ficheiro' && !bufferFicheiro) ? 'carrilhao' : (SONS[cfg.somAlarme] ? cfg.somAlarme : 'carrilhao');
+function duracaoTotalSom(reps){
+  const s = SONS[somEscolhido()], r = Math.max(1, Math.round(reps));
+  return r * s.dur + (r - 1) * Math.max(0, Number(cfg.intervaloRep) || 0);
+}
+
+let somAtivo = null, somAte = 0;
+function tocarSom(reps){
+  pararSom();
+  if (!ctx) return;
+  const s = SONS[somEscolhido()];
+  const mestre = ctx.createGain(); mestre.gain.value = ganhoAlarme(); mestre.connect(ctx.destination);
+  const nos = [], r = Math.max(1, Math.round(reps)), gap = Math.max(0, Number(cfg.intervaloRep) || 0);
+  let t = ctx.currentTime + 0.05;
+  for (let i = 0; i < r; i++){ s.tocar(mestre, t, nos); t += s.dur + gap; }
+  somAtivo = { mestre, nos };
+  somAte = performance.now() + (duracaoTotalSom(r) + 0.05) * 1000;
+  medicaoPausada = true;
+}
+function pararSom(){
+  if (!somAtivo) return;
+  somAtivo.nos.forEach(o => { try { o.stop(); } catch(e){} });
+  try { somAtivo.mestre.disconnect(); } catch(e){}
+  somAtivo = null;
+  retomarMedicao(performance.now());
+}
+// Depois do som: espera mais 1 s (eco) e recomeça a média do zero, sem as medições de antes do alarme
+function retomarMedicao(agora){
+  medicaoPausada = false;
+  retomarEm = agora + 1000;
+  blocos = [];
+}
+
+/* ---------- Ecrã "Fazer silêncio" ---------- */
+let silencioAte = 0;
+function iniciarSilencio(){
+  if (!cfg.silencioAtivo) return;
+  const min = Math.max(0.5, Number(cfg.minutosSilencio) || 5);
+  silencioAte = performance.now() + min * 60000;
+  document.body.classList.add('silencio');
+  atualizarSilencio(performance.now());
+}
+function cancelarSilencio(){
+  silencioAte = 0;
+  document.body.classList.remove('silencio');
+}
+function atualizarSilencio(agora){
+  if (!silencioAte) return;
+  const s = Math.ceil((silencioAte - agora) / 1000);
+  if (s <= 0){ cancelarSilencio(); return; }
+  $('silTxt').textContent = cfg.txtSilencio || 'Fazer silêncio';
+  $('silCont').textContent = Math.floor(s/60) + ':' + String(s%60).padStart(2, '0');
+}
+// C (ou o telemóvel): cancela tudo — ecrã de silêncio, ecrã a piscar e som
+function cancelarTudo(){ cancelarSilencio(); pararAlarme(true); }
+
+/* Ficheiro de áudio próprio (guardado neste browser e, com servidor, também no PC) */
+let bufferFicheiro = null, nomeFicheiro = '';
+async function descodificarFicheiro(dataURL){
+  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const ab = await (await fetch(dataURL)).arrayBuffer();
+  bufferFicheiro = await ctx.decodeAudioData(ab);
+}
+async function carregarFicheiroGuardado(){
+  if (bufferFicheiro) return;
+  try {
+    let o = JSON.parse(localStorage.getItem(CHAVE_AUDIO) || 'null');
+    if (!(o && o.dados) && COM_SERVIDOR){
+      try { const r = await fetch('/api/audio'); if (r.ok) o = await r.json(); } catch(e){}
+    }
+    if (o && o.dados){ nomeFicheiro = o.nome; await descodificarFicheiro(o.dados); }
+  } catch(e){ console.warn('Não foi possível carregar o ficheiro de áudio guardado', e); }
+  atualizarInfoSom();
+}
+function atualizarInfoSom(){
+  $('blocoFicheiro').style.display = cfg.somAlarme === 'ficheiro' ? '' : 'none';
+  $('infoFicheiro').textContent = bufferFicheiro
+    ? `A usar: ${nomeFicheiro} (${bufferFicheiro.duration.toFixed(1)} s)`
+    : 'Nenhum ficheiro escolhido — até escolheres, toca o carrilhão.';
+  const um = SONS[somEscolhido()].dur, tot = duracaoTotalSom(cfg.repeticoes);
+  $('infoSom').textContent = `Cada som dura ${um.toFixed(1)} s · alarme completo: ${tot.toFixed(1)} s de som`;
+}
+
+function sirene(ligar, forcar){
+  // Futuro: enviar também o comando ao ESP32 (Web Serial) para a sirene de 12V.
+  if (ligar && (cfg.somTeste || forcar)) tocarSom(cfg.repeticoes);
+}
+
+async function testarAlarme(){
+  if (!ctx){
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  await ctx.resume();
+  await carregarFicheiroGuardado();
+  if (alarmeAtivo) pararAlarme(true);
+  alarmeAtivo = true; alarmeTeste = true;
+  alarmeAte = performance.now() + Number(cfg.duracaoAlarme)*1000;
+  document.body.classList.add('alarme');
+  sirene(true, true);
+  iniciarSilencio();
+}
+
+// manual = true quando é o utilizador a parar (botão ou tecla): também corta o som.
+function pararAlarme(manual){
+  if (manual === true) pararSom();
+  if (!alarmeAtivo) return;
+  alarmeAtivo = false;
+  if (!alarmeTeste) pausaAte = performance.now() + Number(cfg.pausaAlarme)*1000;
+  alarmeTeste = false;
+  document.body.classList.remove('alarme');
+}
+
+let ultimoTick = 0;
+function tick(agora){
+  requestAnimationFrame(tick);
+  if (agora - ultimoTick < 100) return;
+  const dt = ultimoTick ? (agora - ultimoTick)/1000 : 0;
+  ultimoTick = agora;
+
+  atualizarRelogio();
+  atualizarSilencio(agora);
+  if (alarmeAtivo && agora >= alarmeAte) pararAlarme();
+  if (somAtivo && agora >= somAte){        // o som terminou sozinho
+    somAtivo = null; retomarMedicao(agora);
+  }
+  if (!stream || !isFinite(dbAtual)){ desenharGrafico(); return; }
+
+  if (medicaoPausada){
+    mostrarAviso('🔔 Alarme a tocar — medição em pausa', true);
+  } else if (agora < retomarEm){
+    mostrarAviso('A retomar a medição…', true);
+  } else if (agora - ultimoBloco > 2000){
+    mostrarAviso('Sem sinal do microfone…', true);
+  } else if (picoRecente >= 0.99){
+    mostrarAviso('⚠ Saturação: o som está a “bater no máximo”. Baixa o ganho de entrada do microfone e recalibra.', true);
+  } else mostrarAviso('', false);
+
+  const novo = calcularEstado(dbAtual);
+  if (novo !== estado){
+    if (novo === 'vermelho') vermelhoDesde = agora;
+    estado = novo;
+    document.body.classList.remove('neutro','verde','laranja','vermelho');
+    document.body.classList.add(estado);
+  }
+
+  // alarme
+  // - o tempo em vermelho só conta com a medição ativa (depois do som do alarme anterior);
+  // - durante o ecrã "Fazer silêncio" a "Pausa entre alarmes" não se aplica (novo barulho recomeça a contagem).
+  const emSilencio = silencioAte > agora;
+  if (!alarmeAtivo && estado === 'vermelho' && !medicaoPausada && agora >= retomarEm &&
+      (emSilencio || agora >= pausaAte) &&
+      agora - Math.max(vermelhoDesde, retomarEm) >= Number(cfg.atrasoAlarme)*1000){
+    alarmeAtivo = true; alarmeTeste = false; alarmeAte = agora + Number(cfg.duracaoAlarme)*1000; est.alarmes++;
+    document.body.classList.add('alarme'); sirene(true);
+    iniciarSilencio();
+    // acrescenta tempo ao contador (só enquanto a contagem ainda não terminou)
+    const fim = horaFimContador();
+    if (cfg.acrescentarTempo && cfg.mostrarContador && fim && fim > new Date() && Number(cfg.minutosExtra) > 0){
+      extra.s += Number(cfg.minutosExtra) * 60; guardarExtra();
+    }
+  }
+
+  // estatísticas
+  if (!est.inicio) est.inicio = Date.now();
+  if (est.tempo[estado] !== undefined) est.tempo[estado] += dt;
+  if (dbAtual > est.max) est.max = dbAtual;
+
+  // um ponto por segundo: média (em energia) das medições desse segundo
+  if (!acumHist.t0) acumHist.t0 = agora;
+  acumHist.soma += Math.pow(10, dbAtual/10); acumHist.n++;
+  if (agora - acumHist.t0 >= 1000){
+    historico.push({ t: agora, db: 10*Math.log10(acumHist.soma/acumHist.n) });
+    acumHist = { t0: agora, soma: 0, n: 0 };
+  }
+  while (historico.length && agora - historico[0].t > histS()*1000) historico.shift();
+
+  // ecrã
+  $('valor').firstChild.nodeValue = Math.round(dbAtual);
+  $('rotulo').textContent = estado === 'verde' ? cfg.txtVerde : estado === 'laranja' ? cfg.txtLaranja : cfg.txtVermelho;
+  const [min, max] = escala();
+  const pct = v => Math.max(0, Math.min(100, (v - min) / (max - min) * 100));
+  $('barraNivel').style.width = pct(dbAtual) + '%';
+  $('marcaL').style.left = pct(Number(cfg.limLaranja)) + '%';
+  $('marcaV').style.left = pct(Number(cfg.limVermelho)) + '%';
+
+  if (cfg.mostrarEstat){
+    const tot = est.tempo.verde + est.tempo.laranja + est.tempo.vermelho || 1;
+    const p = k => Math.round(est.tempo[k]/tot*100);
+    $('estat').textContent = `máx ${Math.round(est.max)} dB · 🟢${p('verde')}% 🟠${p('laranja')}% 🔴${p('vermelho')}% · alarmes ${est.alarmes}`;
+  } else $('estat').textContent = '';
+
+  if ($('painel').classList.contains('aberto')){
+    $('infoMedicao').innerHTML =
+      'Nível: <b>' + dbAtual.toFixed(1) + ' dB' + (cfg.pond === 'A' ? '(A)' : '') + '</b><br>' +
+      'Nível digital: ' + dbfsAtual.toFixed(1) + ' dBFS<br>' +
+      'Pico recente: ' + (picoRecente*100).toFixed(0) + '% da escala' +
+      (picoRecente >= 0.99 ? ' <span class="mau">(saturação!)</span>' : '');
+  }
+  desenharGrafico();
+}
+
+function escala(){
+  const L = Number(cfg.limLaranja), V = Number(cfg.limVermelho);
+  return [Math.min(L, V) - 30, Math.max(L, V) + 20];
+}
+
+function desenharGrafico(){
+  const cv = $('grafico');
+  cv.style.display = cfg.mostrarGrafico ? 'block' : 'none';
+  if (!cfg.mostrarGrafico) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = Math.round(cv.clientWidth*dpr), H = Math.round(cv.clientHeight*dpr);
+  if (cv.width !== W || cv.height !== H){ cv.width = W; cv.height = H; }
+  const g = cv.getContext('2d');
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(0, 0, W, H);
+  const [min, max] = escala();
+  const y = v => H - (Math.max(min, Math.min(max, v)) - min) / (max - min) * H;
+  const cor = getComputedStyle(document.getElementById('ecra')).color;
+
+  g.setLineDash([6*dpr, 6*dpr]); g.lineWidth = 2*dpr; g.strokeStyle = 'rgba(0,0,0,.5)';
+  [Number(cfg.limLaranja), Number(cfg.limVermelho)].forEach(v => { g.beginPath(); g.moveTo(0, y(v)); g.lineTo(W, y(v)); g.stroke(); });
+  g.setLineDash([]);
+
+  const HS = histS();
+  // linhas verticais de referência (a cada 10 min, ou a cada minuto em gráficos curtos)
+  const passo = HS > 1200 ? 600 : 60;
+  g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 1*dpr;
+  for (let s = passo; s < HS; s += passo){
+    const xv = W - s / HS * W;
+    g.beginPath(); g.moveTo(xv, 0); g.lineTo(xv, H); g.stroke();
+  }
+
+  if (historico.length > 1){
+    const agora = performance.now();
+    const x = t => W - (agora - t) / (HS*1000) * W;
+    g.beginPath();
+    historico.forEach((p, i) => i ? g.lineTo(x(p.t), y(p.db)) : g.moveTo(x(p.t), y(p.db)));
+    g.strokeStyle = cor; g.lineWidth = 3*dpr; g.stroke();
+  }
+  g.fillStyle = cor; g.globalAlpha = .8; g.font = (12*dpr) + 'px system-ui,sans-serif';
+  g.fillText('últimos ' + Math.round(HS/60) + ' min' + (passo === 600 ? ' · linhas a cada 10 min' : ''), 8*dpr, 16*dpr); g.globalAlpha = 1;
+}
+
+function atualizarRelogio(){
+  const d = new Date();
+  const dois = n => String(n).padStart(2, '0');
+
+  // frase
+  $('rFrase').textContent = cfg.frase || '';
+  $('rFrase').style.display = cfg.mostrarFrase && cfg.frase ? '' : 'none';
+
+  // contador regressivo até à hora definida (no próprio dia)
+  const alvo = horaFimContador();
+  let txtCont = '--:--';
+  if (alvo){
+    const s = Math.ceil((alvo - d) / 1000);
+    if (s > 0){
+      const hh = Math.floor(s/3600), mm = Math.floor(s%3600/60), ss = s%60;
+      txtCont = hh ? `${hh}:${dois(mm)}:${dois(ss)}` : `${dois(mm)}:${dois(ss)}`;
+      $('rContLbl').textContent = cfg.txtContador || '';
+    } else {
+      txtCont = cfg.txtFimContador || '00:00';
+      $('rContLbl').textContent = '';
+    }
+  }
+  $('rContVal').textContent = txtCont;
+  $('rContExtra').textContent = extra.s > 0 ? '(+' + fmtExtra(extra.s) + ')' : '';
+  $('infoExtra').textContent = 'Tempo extra hoje: ' + fmtExtra(extra.s);
+  $('rContador').style.display = cfg.mostrarContador ? '' : 'none';
+
+  // hora atual
+  $('rHoraVal').textContent = `${dois(d.getHours())}:${dois(d.getMinutes())}`;
+  $('rHora').style.display = cfg.mostrarHora ? '' : 'none';
+
+  // IP do computador (escrito em ip.js pelo arranque do sistema)
+  const ipTxt = (window.SEMAFORO_IP || '').trim();
+  $('ip').textContent = ipTxt ? 'IP ' + ipTxt + ' · v' + VERSAO : '';
+  $('ip').style.display = cfg.mostrarIP && ipTxt ? 'block' : 'none';
+
+  $('rodape').style.display = (cfg.mostrarFrase && cfg.frase) || cfg.mostrarContador || cfg.mostrarHora ? '' : 'none';
+}
+
+function mostrarAviso(txt, ver){
+  const a = $('aviso');
+  a.textContent = txt; a.style.display = ver && txt ? 'block' : 'none';
+}
+
+/* ---------- Ecrã sempre ligado ---------- */
+let wakeLock = null;
+async function pedirWakeLock(){
+  try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pedirWakeLock(); });
+
+/* ---------- Painel de definições ---------- */
+const CAMPOS_NUM = ['offset','janela','limLaranja','limVermelho','histerese','atrasoAlarme','duracaoAlarme','pausaAlarme','minutosExtra','minGrafico','minutosSilencio'];
+const CAMPOS_TXT = ['txtVerde','txtLaranja','txtVermelho','frase','horaAlvo','txtContador','txtFimContador','txtSilencio'];
+const CAMPOS_CHK = ['somTeste','mostrarGrafico','mostrarEstat','mostrarFrase','mostrarContador','mostrarHora','acrescentarTempo','mostrarIP','silencioAtivo'];
+
+function preencherPainel(){
+  CAMPOS_NUM.forEach(k => $(k).value = cfg[k]);
+  CAMPOS_TXT.forEach(k => $(k).value = cfg[k]);
+  CAMPOS_CHK.forEach(k => $(k).checked = !!cfg[k]);
+  $('pond').value = cfg.pond;
+  $('volumeAlarme').value = cfg.volumeAlarme;
+  $('volumeTxt').textContent = Math.round(cfg.volumeAlarme) + '%';
+  $('somAlarme').value = cfg.somAlarme;
+  $('repeticoes').value = cfg.repeticoes;
+  $('intervaloRep').value = cfg.intervaloRep;
+  atualizarInfoSom();
+}
+$('volumeAlarme').addEventListener('input', e => {
+  cfg.volumeAlarme = Number(e.target.value); guardar();
+  $('volumeTxt').textContent = cfg.volumeAlarme + '%';
+  if (somAtivo) somAtivo.mestre.gain.value = ganhoAlarme();
+});
+$('somAlarme').addEventListener('change', async e => {
+  cfg.somAlarme = e.target.value; guardar();
+  if (cfg.somAlarme === 'ficheiro') await carregarFicheiroGuardado();
+  atualizarInfoSom();
+});
+['repeticoes','intervaloRep'].forEach(k => $(k).addEventListener('change', e => {
+  const v = parseFloat(e.target.value);
+  if (isFinite(v) && v >= 0){ cfg[k] = k === 'repeticoes' ? Math.max(1, Math.round(v)) : v; guardar(); }
+  e.target.value = cfg[k]; atualizarInfoSom();
+}));
+$('ficheiroSom').addEventListener('change', async e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  const dados = await new Promise((ok, erro) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = erro; r.readAsDataURL(f); });
+  try {
+    await descodificarFicheiro(dados);
+    nomeFicheiro = f.name;
+  } catch(err){
+    $('infoFicheiro').textContent = 'Não consegui ler este ficheiro de áudio. Experimenta um MP3, WAV ou OGG.';
+    return;
+  }
+  let aviso = '', guardado = false;
+  if (COM_SERVIDOR){
+    try { const r = await fetch('/api/audio', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ nome: f.name, dados }) }); guardado = r.ok; } catch(err){}
+  }
+  try { localStorage.setItem(CHAVE_AUDIO, JSON.stringify({ nome: f.name, dados })); guardado = true; }
+  catch(err){ if (!guardado) aviso = ' Atenção: o ficheiro é demasiado grande para ficar guardado; ao recarregar a página terás de o escolher de novo.'; }
+  atualizarInfoSom();
+  if (aviso) $('infoFicheiro').textContent += aviso;
+});
+$('btnOuvir').addEventListener('click', async () => {
+  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+  await ctx.resume(); await carregarFicheiroGuardado();
+  tocarSom(1);
+});
+$('btnReporExtra').addEventListener('click', reporExtra);
+$('horaAlvo').addEventListener('change', reporExtra);
+$('btnTestarAlarme').addEventListener('click', testarAlarme);
+$('btnPararAlarme').addEventListener('click', cancelarTudo);
+CAMPOS_NUM.forEach(k => $(k).addEventListener('change', e => {
+  const v = parseFloat(e.target.value);
+  if (isFinite(v)){ cfg[k] = v; guardar(); } else e.target.value = cfg[k];
+}));
+CAMPOS_TXT.forEach(k => $(k).addEventListener('input', e => { cfg[k] = e.target.value; guardar(); }));
+CAMPOS_CHK.forEach(k => $(k).addEventListener('change', e => {
+  cfg[k] = e.target.checked; guardar(); if (k === 'somTeste' && !cfg.somTeste && !alarmeTeste) pararSom();
+}));
+$('pond').addEventListener('change', async e => { cfg.pond = e.target.value; guardar(); if (fonte) await montarCadeia(); });
+$('selDisp').addEventListener('change', async e => {
+  cfg.dispositivo = e.target.value; guardar();
+  try { await abrirMicrofone(); } catch(err){ mostrarAviso('Erro ao mudar de microfone: ' + err.message, true); }
+});
+$('btnCalibrar').addEventListener('click', () => {
+  const ref = parseFloat($('refSono').value);
+  if (!isFinite(ref)){ alertaPainel('Escreve primeiro o valor do sonómetro.'); return; }
+  if (!isFinite(dbfsAtual)){ alertaPainel('Ainda não há medição do microfone.'); return; }
+  cfg.offset = Math.round((ref - dbfsAtual)*10)/10; guardar(); preencherPainel();
+  alertaPainel('Calibrado: compensação = ' + cfg.offset + ' dB');
+});
+function alertaPainel(t){ $('infoMedicao').insertAdjacentHTML('afterbegin', '<b>' + t + '</b><br>'); }
+$('btnReporEstat').addEventListener('click', () => {
+  est.inicio = 0; est.tempo = { verde:0, laranja:0, vermelho:0 }; est.max = -Infinity; est.alarmes = 0;
+  historico.length = 0; acumHist = { t0: 0, soma: 0, n: 0 };
+});
+// Repor definições: tudo volta aos valores por defeito, EXCETO a calibração e o microfone escolhido
+$('btnReporDef').addEventListener('click', async () => {
+  const manter = { dispositivo: cfg.dispositivo, offset: cfg.offset };
+  cfg = Object.assign({}, DEF, manter); guardar(); preencherPainel();
+  if (fonte) await montarCadeia();
+});
+// Repor calibração: só a compensação do microfone
+$('btnReporCal').addEventListener('click', () => {
+  cfg.offset = DEF.offset; guardar(); preencherPainel();
+  alertaPainel('Calibração reposta: compensação = ' + cfg.offset + ' dB');
+});
+
+function abrirPainel(abrir){
+  const p = $('painel');
+  const v = abrir === undefined ? !p.classList.contains('aberto') : abrir;
+  p.classList.toggle('aberto', v);
+  if (v){ preencherPainel(); mostrarInfoMic(); }
+}
+$('btnDef').addEventListener('click', () => abrirPainel());
+$('fechar').addEventListener('click', () => abrirPainel(false));
+$('btnEcra').addEventListener('click', ecraInteiro);
+function ecraInteiro(){
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+  else document.exitFullscreen();
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape'){ abrirPainel(false); return; }
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.key === 's' || e.key === 'S') abrirPainel();
+  else if (e.key === 'f' || e.key === 'F') ecraInteiro();
+  else if (e.key === 'i' || e.key === 'I'){ cfg.mostrarIP = !cfg.mostrarIP; guardar(); preencherPainel(); }
+  else if (e.key === 't' || e.key === 'T') ((alarmeAtivo || somAtivo || silencioAte) ? cancelarTudo() : testarAlarme());
+  else if (e.key === 'c' || e.key === 'C') cancelarTudo();
+});
+
+/* ---------- IP (lido de ip.js, atualizado de 30 em 30 s) ---------- */
+function lerIP(){
+  const antigo = document.getElementById('ipScript'); if (antigo) antigo.remove();
+  const sc = document.createElement('script');
+  sc.id = 'ipScript'; sc.src = 'ip.js?t=' + Date.now();
+  sc.onerror = () => sc.remove();
+  document.head.appendChild(sc);
+}
+lerIP(); setInterval(lerIP, 30000);
+
+/* ---------- Ligação ao servidor local (definições partilhadas com o telemóvel) ---------- */
+function aplicarCfgDoServidor(novo, rev){
+  const antigo = cfg;
+  cfg = Object.assign({}, DEF, novo);
+  revServidor = rev;
+  guardarLocal();
+  if (fonte && antigo.pond !== cfg.pond) montarCadeia();
+  if (somAtivo) somAtivo.mestre.gain.value = ganhoAlarme();
+  const p = $('painel');
+  const aEditar = p.contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName);
+  if (p.classList.contains('aberto') && !aEditar) preencherPainel();
+  else atualizarInfoSom();
+}
+async function arrancarServidor(){
+  try {
+    const r = await fetch('/api/config');
+    if (!r.ok) return;
+    const j = await r.json();
+    servidorOK = true;
+    if (j.cfg && Object.keys(j.cfg).length){
+      // o ficheiro do PC manda; mantém-se o microfone escolhido neste browser se o ficheiro não tiver
+      aplicarCfgDoServidor(Object.assign({ dispositivo: cfg.dispositivo }, j.cfg), j.rev);
+    } else {
+      guardar();   // primeiro arranque: grava no PC as definições que estavam no browser
+    }
+    $('infoGravacao').textContent = 'As definições ficam guardadas no PC e podem ser alteradas pelo telemóvel (http://IP-do-PC).';
+  } catch(e){}
+}
+let ultimoCmd = -1, aSincronizar = false;   // -1 = ainda não sabe qual foi o último comando
+async function sincronizar(){
+  if (!servidorOK || aSincronizar) return;
+  aSincronizar = true;
+  try {
+    const agora = performance.now();
+    const estadoAtual = {
+      versao: VERSAO, db: isFinite(dbAtual) ? Math.round(dbAtual*10)/10 : null, estado,
+      silencio: silencioAte > agora ? Math.ceil((silencioAte - agora)/1000) : 0,
+      alarme: alarmeAtivo, pausada: medicaoPausada, alarmes: est.alarmes,
+      tempoExtra: extra.s, offset: cfg.offset, iniciado: !!stream
+    };
+    const r = await fetch('/api/sync', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ rev: revServidor, ultimoCmd, estado: estadoAtual }) });
+    if (r.ok){
+      const j = await r.json();
+      if (j.cfg && j.rev > revServidor) aplicarCfgDoServidor(Object.assign({ dispositivo: cfg.dispositivo }, j.cfg), j.rev);
+      for (const c of (j.cmds || [])){
+        ultimoCmd = Math.max(ultimoCmd, c.id);
+        if (c.cmd === 'testar') testarAlarme();
+        else if (c.cmd === 'cancelar') cancelarTudo();
+        else if (c.cmd === 'reporExtra') reporExtra();
+      }
+      if (typeof j.ultimoCmd === 'number' && ultimoCmd < 0) ultimoCmd = j.ultimoCmd;
+    }
+  } catch(e){}
+  aSincronizar = false;
+}
+if (COM_SERVIDOR){
+  arrancarServidor().then(() => setInterval(sincronizar, 1000));
+}
+
+$('versaoTxt').textContent = VERSAO;
+$('btnIniciar').addEventListener('click', iniciar);
+preencherPainel();
+requestAnimationFrame(tick);
+
+// Arranque automático opcional (modo quiosque): abrir a página com ?auto=1
+if (new URLSearchParams(location.search).get('auto') === '1') iniciar();
+})();
+</script>
+
+<script>
+/* ======================= Modo telemóvel (?remoto=1) ======================= */
+(() => {
+'use strict';
+if (MODO !== 'remoto') return;
+document.body.classList.add('remoto'); document.documentElement.classList.add('remoto');
+document.title = 'Semáforo — definições';
+const R = document.getElementById('remoto');
+const CHAVE_PIN = 'semaforo-pin';
+let pin = ''; try { pin = localStorage.getItem(CHAVE_PIN) || ''; } catch(e){}
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// [id, texto, tipo, passo|opções]
+const SECCOES = [
+  ['Limites', [['limLaranja','Laranja a partir de (dB)','num',1], ['limVermelho','Vermelho a partir de (dB)','num',1],
+               ['histerese','Margem para descer (dB)','num',0.5], ['janela','Média (segundos)','num',0.5]]],
+  ['Alarme', [['atrasoAlarme','Tocar após (s) em vermelho','num',1], ['duracaoAlarme','Ecrã a piscar durante (s)','num',1],
+              ['pausaAlarme','Pausa entre alarmes (s)','num',1]]],
+  ['Ecrã "Fazer silêncio"', [['silencioAtivo','Mostrar no alarme','chk'], ['txtSilencio','Texto','txt'],
+              ['minutosSilencio','Duração (min)','num',0.5]]],
+  ['Som do alarme', [['somTeste','Tocar som nas colunas','chk'],
+              ['somAlarme','Som','sel',[['carrilhao','Carrilhão 3 notas'],['dingdong','Ding-dong'],['marimba','Marimba'],['sino','Sino suave'],
+                                         ['taca','Taça tibetana'],['gongo','Gongo'],['ficheiro','Ficheiro próprio (escolhido no PC)'],['sirene','Sirene']]],
+              ['repeticoes','Repetições','num',1], ['intervaloRep','Intervalo entre repetições (s)','num',0.5], ['volumeAlarme','Volume','rng']]],
+  ['Ecrã', [['txtVerde','Texto verde','txt'], ['txtLaranja','Texto laranja','txt'], ['txtVermelho','Texto vermelho','txt'],
+            ['mostrarGrafico','Mostrar gráfico','chk'], ['minGrafico','Duração do gráfico (min)','num',1],
+            ['mostrarEstat','Mostrar estatísticas','chk'], ['mostrarIP','Mostrar IP','chk']]],
+  ['Por baixo do gráfico', [['mostrarFrase','Mostrar frase','chk'], ['frase','Frase','txt'],
+            ['mostrarContador','Mostrar contador','chk'], ['horaAlvo','Contar até às','time'],
+            ['txtContador','Texto antes do contador','txt'], ['txtFimContador','Texto quando termina','txt'],
+            ['acrescentarTempo','Acrescentar tempo por alarme','chk'], ['minutosExtra','Minutos por alarme','num',0.5],
+            ['mostrarHora','Mostrar hora atual','chk']]]
+];
+
+async function api(caminho, opcoes){
+  opcoes = opcoes || {};
+  opcoes.headers = Object.assign({ 'X-PIN': pin }, opcoes.headers || {});
+  const r = await fetch(caminho, opcoes);
+  if (r.status === 401){ const e = new Error('pin'); e.pin = true; throw e; }
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.status === 204 ? null : r.json();
+}
+
+function ecraPin(msg){
+  R.innerHTML = `<h1>Semáforo sonoro</h1>
+    <p>Escreve o PIN definido na instalação.</p>
+    <div class="campo"><input id="rPin" type="password" inputmode="numeric" autocomplete="off" style="width:100%" placeholder="PIN"></div>
+    <div class="botoes" style="grid-template-columns:1fr"><button class="prim" id="rEntrar">Entrar</button></div>
+    <div id="remotoMsg" class="mau">${esc(msg || '')}</div>`;
+  const entrar = async () => {
+    pin = document.getElementById('rPin').value.trim();
+    try { await api('/api/config'); try { localStorage.setItem(CHAVE_PIN, pin); } catch(e){} carregar(); }
+    catch(e){ ecraPin(e.pin ? 'PIN errado.' : 'Sem ligação ao PC do semáforo.'); }
+  };
+  document.getElementById('rEntrar').onclick = entrar;
+  document.getElementById('rPin').onkeydown = e => { if (e.key === 'Enter') entrar(); };
+}
+
+function campoHTML([id, texto, tipo, extra], v){
+  if (tipo === 'chk') return `<label class="campo"><span>${esc(texto)}</span><input type="checkbox" data-id="${id}" data-tipo="chk" ${v ? 'checked' : ''}></label>`;
+  if (tipo === 'num') return `<label class="campo"><span>${esc(texto)}</span><input type="number" inputmode="decimal" step="${extra}" data-id="${id}" data-tipo="num" value="${esc(v)}"></label>`;
+  if (tipo === 'rng') return `<label class="campo"><span>${esc(texto)} <b id="rVol">${esc(v)}%</b></span><input type="range" min="0" max="100" step="1" data-id="${id}" data-tipo="num" value="${esc(v)}" oninput="document.getElementById('rVol').textContent=this.value+'%'"></label>`;
+  if (tipo === 'sel') return `<label class="campo"><span>${esc(texto)}</span><select data-id="${id}" data-tipo="txt">` +
+      extra.map(([val, nome]) => `<option value="${val}" ${val === v ? 'selected' : ''}>${esc(nome)}</option>`).join('') + `</select></label>`;
+  const t = tipo === 'time' ? 'time' : 'text';
+  return `<label class="campo"><span>${esc(texto)}</span><input type="${t}" data-id="${id}" data-tipo="txt" value="${esc(v)}"></label>`;
+}
+
+let pollEstado = null;
+async function carregar(){
+  let j;
+  try { j = await api('/api/config'); }
+  catch(e){ ecraPin(e.pin ? '' : 'Sem ligação ao PC do semáforo.'); return; }
+  const c = j.cfg || {};
+  R.innerHTML = `<h1>Semáforo sonoro</h1>
+    <div id="rEstado" class="estadoCaixa">A ligar ao ecrã…</div>
+    <div class="botoes">
+      <button id="rTestar">▶ Testar alarme</button>
+      <button id="rCancelar">■ Cancelar alarme</button>
+      <button id="rExtra">Repor tempo extra</button>
+      <button id="rRecarregar">↻ Recarregar</button>
+    </div>` +
+    SECCOES.map(([titulo, campos]) => `<h2>${esc(titulo)}</h2>` + campos.map(f => campoHTML(f, c[f[0]])).join('')).join('') +
+    `<h2>Calibração</h2><div class="nota">Compensação atual: <b>${esc(c.offset)}</b> dB. A calibração só se faz no próprio PC (tecla S), com o sonómetro ao lado.</div>
+    <div class="fixo"><button class="prim" id="rGuardar" style="width:100%">Guardar alterações</button><div id="remotoMsg"></div></div>`;
+
+  const msg = (t, ok) => { const m = document.getElementById('remotoMsg'); m.textContent = t; m.className = ok ? 'ok' : 'mau'; };
+  const comando = async cmd => {
+    try { await api('/api/comando', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ cmd }) }); msg('Enviado ✓', true); }
+    catch(e){ msg(e.pin ? 'PIN errado.' : 'Não foi possível enviar.', false); }
+  };
+  document.getElementById('rTestar').onclick = () => comando('testar');
+  document.getElementById('rCancelar').onclick = () => comando('cancelar');
+  document.getElementById('rExtra').onclick = () => comando('reporExtra');
+  document.getElementById('rRecarregar').onclick = carregar;
+  document.getElementById('rGuardar').onclick = async () => {
+    const novo = {};
+    R.querySelectorAll('[data-id]').forEach(el => {
+      const id = el.dataset.id;
+      if (el.type === 'checkbox') novo[id] = el.checked;
+      else if (el.dataset.tipo === 'num'){ const v = parseFloat(String(el.value).replace(',', '.')); if (isFinite(v)) novo[id] = v; }
+      else novo[id] = el.value;
+    });
+    try {
+      await api('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ cfg: novo }) });
+      msg('Guardado ✓ — o ecrã atualiza em poucos segundos.', true);
+    } catch(e){ msg(e.pin ? 'PIN errado.' : 'Não foi possível guardar.', false); }
+  };
+
+  clearInterval(pollEstado);
+  const nomes = { verde:'verde', laranja:'laranja', vermelho:'vermelho', neutro:'—' };
+  const atualizarEstado = async () => {
+    const caixa = document.getElementById('rEstado'); if (!caixa) return;
+    try {
+      const e = await api('/api/estado');
+      const s = e.estado || {};
+      if (!e.estado || e.idade > 6){ caixa.className = 'estadoCaixa'; caixa.textContent = 'Sem ligação ao ecrã do semáforo (está ligado?)'; return; }
+      caixa.className = 'estadoCaixa ' + (s.estado || '');
+      let t = (s.db != null ? s.db.toFixed(0) + ' dB · ' : '') + (nomes[s.estado] || '—');
+      if (!s.iniciado) t = 'Ecrã ligado, medição parada';
+      if (s.pausada) t += ' · alarme a tocar';
+      if (s.silencio > 0) t += ` · "Fazer silêncio" ${Math.floor(s.silencio/60)}:${String(s.silencio%60).padStart(2,'0')}`;
+      caixa.innerHTML = esc(t) + `<div class="nota" style="color:inherit;opacity:.8">alarmes: ${esc(s.alarmes)} · versão ${esc(s.versao)}</div>`;
+    } catch(err){ caixa.className = 'estadoCaixa'; caixa.textContent = err.pin ? 'PIN errado.' : 'Sem ligação ao PC do semáforo.'; }
+  };
+  atualizarEstado(); pollEstado = setInterval(atualizarEstado, 2000);
+}
+
+if (pin) carregar(); else ecraPin('');
+})();
+</script>
+<!-- SEMAFORO_PAGINA_OK -->
+</body>
+</html>
