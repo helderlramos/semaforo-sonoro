@@ -17,6 +17,7 @@ F_CFG   = os.path.join(DADOS, 'definicoes.json')
 F_AUDIO = os.path.join(DADOS, 'audio.json')
 F_PIN   = os.path.join(DADOS, 'pin')
 F_EXTRA = os.path.join(DADOS, 'extra-migrado.json')
+F_DESLIGAR = os.path.join(DADOS, 'desligar-agora')
 
 # definições que só podem ser alteradas no próprio PC (não pelo telemóvel)
 SO_NO_PC = {'offset', 'dispositivo'}
@@ -196,6 +197,13 @@ class Pedido(BaseHTTPRequestHandler):
             if not isinstance(corpo.get('dados'), str):
                 return self.enviar(400, {'erro': 'dados em falta'})
             gravar_json(F_AUDIO, {'nome': str(corpo.get('nome', 'audio'))[:120], 'dados': corpo['dados']})
+            return self.enviar(204)
+
+        if caminho == '/api/desligar':                  # pedido do ecrã do próprio PC, à hora marcada
+            if not self.local():
+                return self.enviar(403, {'erro': 'só no PC'})
+            with open(F_DESLIGAR, 'w') as f:            # o vigia (semaforo-vigia-desligar) desliga o PC
+                f.write(time.strftime('%F %T'))
             return self.enviar(204)
 
         if caminho == '/api/migrar':                    # uma só vez: definições antigas do browser

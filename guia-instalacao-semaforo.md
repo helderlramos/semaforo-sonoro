@@ -1,6 +1,6 @@
 # Semáforo Sonoro — guia de instalação e manutenção
 
-**Versão 3 — 29/09/2026.** Substitui a versão 2. Novidades: definições pelo telemóvel, atualização automática da página a partir do GitHub, ecrã "Fazer silêncio", som pela saída analógica (escola), uso de `sudo`.
+**Versão 3.2 — 01/10/2026.** Substitui a 3.1. Novidade: **desligar automático a 3 horas definidas** (página v2026-10-01 + script v5). Versão 3.1: Na escola, `raw.githubusercontent.com` está bloqueado: o script v5 descarrega pelo API do GitHub. Versão 3: Novidades: definições pelo telemóvel, atualização automática da página a partir do GitHub, ecrã "Fazer silêncio", som pela saída analógica (escola), uso de `sudo`.
 
 Ficheiros oficiais: **https://github.com/helderlramos/semaforo-sonoro** (público). Cópias no Google Drive, pasta `Echo/Semáforo`.
 
@@ -10,6 +10,7 @@ Ficheiros oficiais: **https://github.com/helderlramos/semaforo-sonoro** (públic
 
 - **Botão de ligar →** o PC arranca, entra sozinho na conta `semaforo` e abre o semáforo em ecrã inteiro (20–40 s).
 - **Botão outra vez (pressão curta) →** o PC desliga-se corretamente.
+- **Desligar automático →** às horas definidas (por defeito 11:30, 15:00 e 17:15) o PC desliga-se sozinho, com aviso de 1 minuto. **Ligar continua a ser no botão.**
 - Em cada arranque, **antes de abrir o ecrã**, o PC vai buscar ao GitHub a versão mais recente da página. Só a substitui se vier completa; se falhar (sem internet, por exemplo), fica a versão anterior. Guarda a versão anterior em `index.anterior.html`. Nunca atualiza a meio do almoço.
 - **Definições pelo telemóvel:** no browser do telemóvel, na mesma rede, abre `http://IP-do-PC` (o IP aparece no canto inferior esquerdo do ecrã). Pede o PIN definido na instalação.
 - **Duas contas:**
@@ -30,8 +31,8 @@ Ficheiros oficiais: **https://github.com/helderlramos/semaforo-sonoro** (públic
 
 | Ficheiro | Para quê |
 |---|---|
-| `instalar-semaforo.sh` | Script que transforma o Debian no semáforo (**v4**) |
-| `semaforo-sonoro-teste.html` | A página do semáforo (ecrã + modo telemóvel). Versão visível no canto do ecrã (ex.: `v2026-09-29`) |
+| `instalar-semaforo.sh` | Script que transforma o Debian no semáforo (**v5**) |
+| `semaforo-sonoro-teste.html` | A página do semáforo (ecrã + modo telemóvel). Versão visível no canto do ecrã (ex.: `v2026-10-01`) |
 | `servidor.py` | Servidor local (página do telemóvel e definições partilhadas) |
 | `guia-instalacao-semaforo.md` | Este guia |
 
@@ -68,7 +69,16 @@ sudo reboot
 
 ## 7. Instalar (ou atualizar) o semáforo
 
-**7.1 Copiar os ficheiros** — PowerShell no Windows, na pasta onde estão os 3 ficheiros:
+**7.0 Forma mais simples — diretamente do GitHub** (janela do SSH, um comando de cada vez):
+```
+mkdir -p ~/instalacao && cd ~/instalacao
+wget --header="Accept: application/vnd.github.raw" -O instalar-semaforo.sh https://api.github.com/repos/helderlramos/semaforo-sonoro/contents/instalar-semaforo.sh
+sudo bash instalar-semaforo.sh
+sudo reboot
+```
+Usa sempre uma pasta vazia (`~/instalacao`): se houver ficheiros antigos na mesma pasta, o script usa-os em vez dos do GitHub. Alternativa se o API falhar: descarregar o pacote `https://codeload.github.com/helderlramos/semaforo-sonoro/tar.gz/refs/heads/main`, `tar xzf` e correr o script dentro de `semaforo-sonoro-main`.
+
+**7.1 Alternativa sem internet no PC — copiar os ficheiros** — PowerShell no Windows, na pasta onde estão os 3 ficheiros:
 ```
 dir *.sh, *.html, *.py
 scp instalar-semaforo.sh semaforo-sonoro-teste.html servidor.py helder@IP_DO_PC:~/
@@ -124,9 +134,15 @@ Se o telemóvel não abrir a página: confirma que está na mesma rede e que o I
 
 **10.3 Ecrã "Fazer silêncio":** quando o alarme dispara, tapa tudo, a piscar, com uma contagem de 5 min (texto e duração ajustáveis; pode ser desligado). Se voltar a haver barulho durante a contagem, o alarme toca de novo e a contagem recomeça. **C** cancela (ou "Cancelar alarme" no telemóvel).
 
-**10.4 Repor:** "Repor definições" repõe tudo **exceto a calibração**; "Repor calibração" (secção Calibração) repõe só a calibração.
+**10.4 Desligar automaticamente** (tecla S ou telemóvel, secção "Desligar automaticamente"): 3 horas, cada uma com caixa para ativar/desativar. Por defeito **11:30, 15:00 e 17:15**, todos os dias.
+- 1 minuto antes aparece um aviso em ecrã inteiro com contagem. **C** (ou "Cancelar alarme / desligar" no telemóvel) cancela — nesse caso só volta a desligar na hora seguinte.
+- Se o alarme estiver a tocar ou o ecrã "Fazer silêncio" estiver ativo, espera que termine.
+- Só atua se o PC estiver ligado à hora marcada (até 2 min depois); horas já passadas quando o PC é ligado são ignoradas. Cada hora atua no máximo uma vez por dia.
+- Requer o script **v5** (autorização limitada a `systemctl poweroff` para a conta `semaforo`, em `/etc/sudoers.d/semaforo-desligar`).
 
-**10.5 Onde ficam:** num ficheiro no PC (`/home/semaforo/semaforo-dados/definicoes.json`), partilhado pelo ecrã e pelo telemóvel. As atualizações da página não apagam as definições.
+**10.5 Repor:** "Repor definições" repõe tudo **exceto a calibração**; "Repor calibração" (secção Calibração) repõe só a calibração.
+
+**10.6 Onde ficam:** num ficheiro no PC (`/home/semaforo/semaforo-dados/definicoes.json`), partilhado pelo ecrã e pelo telemóvel. As atualizações da página não apagam as definições.
 
 ## 11. Resolução de problemas
 
@@ -146,10 +162,13 @@ Se o telemóvel não abrir a página: confirma que está na mesma rede e que o I
 | **11.12** Telemóvel: "Sem ligação ao ecrã" | O ecrã não está a correr — `sudo systemctl status semaforo-servidor` e reiniciar o PC |
 | **11.13** SSH: aviso de identificação alterada | No Windows: `ssh-keygen -R IP` |
 | **11.14** Colar vários comandos de uma vez com `su -` | O `su` "engole" as linhas seguintes — um comando de cada vez |
+| **11.15** `wget` fica parado em "A ligar a raw.githubusercontent.com" | Rede bloqueia esse endereço (acontece na escola) — usar o API (7.0) |
+| **11.16** O aviso de desligar aparece mas o PC não desliga | Script anterior à v5: correr o script v5 (7.0). Confirmar com `sudo cat /etc/sudoers.d/semaforo-desligar` |
+| **11.17** Não quero que desligue hoje | **C** durante o aviso, ou desativar a hora nas definições |
 
 ## 12. Utilização e manutenção
 
-**Teclas:** **S** definições · **T** testar/parar alarme · **C** cancelar "Fazer silêncio" · **I** mostrar/esconder IP · **F** ecrã inteiro · **Esc** fechar.
+**Teclas:** **S** definições · **T** testar/parar alarme · **C** cancelar "Fazer silêncio" / desligar automático · **I** mostrar/esconder IP · **F** ecrã inteiro · **Esc** fechar.
 
 **No PC:** Ctrl+Alt+F2 abre um terminal; Ctrl+Alt+F1 volta ao semáforo.
 

@@ -13,11 +13,16 @@
 #  v4 (29/09/2026): servidor local + definições pelo telemóvel (http://IP-do-PC, com PIN);
 #                   atualização automática da página a partir do GitHub em cada arranque;
 #                   passa as definições antigas do browser para o PC (uma vez).
+#  v5 (01/10/2026): descarrega do GitHub pelo API (api.github.com), porque a rede da escola
+#                   bloqueia raw.githubusercontent.com; o endereço antigo fica como alternativa.
+#                   Desligar automaticamente às horas definidas na página (a conta semaforo só
+#                   tem autorização para desligar o PC, nada mais).
 # =============================================================================
 set -euo pipefail
 
 UTILIZADOR="semaforo"
 GITHUB="https://raw.githubusercontent.com/helderlramos/semaforo-sonoro/main"
+GITHUB_API="https://api.github.com/repos/helderlramos/semaforo-sonoro/contents"
 PASTA_SCRIPT="$(cd "$(dirname "$0")" && pwd)"
 
 [ "$(id -u)" -eq 0 ] || { echo "Corre este script como administrador:  sudo bash instalar-semaforo.sh"; exit 1; }
@@ -47,7 +52,7 @@ apt-get install -y --no-install-recommends \
   xinit x11-xserver-utils unclutter \
   chromium \
   pipewire pipewire-pulse wireplumber pipewire-alsa alsa-utils dbus-user-session pulseaudio-utils \
-  openssh-server python3 curl iproute2 \
+  openssh-server python3 curl iproute2 sudo \
   fonts-dejavu-core fonts-noto-color-emoji
 
 # --- 4. Pastas, página e servidor ----------------------------------------------
@@ -59,7 +64,8 @@ obter() {   # obter <ficheiro> <destino> : usa a cópia da pasta do script ou de
     cp "$PASTA_SCRIPT/$1" "$2"
   else
     echo ">> $1 não está na pasta; a descarregar do GitHub..."
-    curl -fsSL --max-time 60 "$GITHUB/$1" -o "$2"
+    curl -fsSL --max-time 60 -H "Accept: application/vnd.github.raw" "$GITHUB_API/$1?ref=main" -o "$2" \
+      || curl -fsSL --max-time 60 "$GITHUB/$1" -o "$2"
   fi
 }
 
@@ -145,6 +151,9 @@ unclutter -idle 3 &
 # Escreve o IP para a página (ip.js), de 30 em 30 s
 semaforo-ip &
 
+# Desliga o PC quando a página o pede (às horas definidas nas definições)
+semaforo-vigia-desligar &
+
 # Atualiza a página a partir do GitHub (só no arranque; se falhar, fica a versão anterior)
 semaforo-atualizar-pagina
 
@@ -203,7 +212,31 @@ HandlePowerKey=poweroff
 HandlePowerKeyLongPress=poweroff
 EOF
 
-# --- 10. Comandos auxiliares ----------------------------------------------------
+# --- 10. Autorização para desligar o PC (só isto) -------------------------------
+TMP_SUDO="$(mktemp)"
+echo "$UTILIZADOR ALL=(root) NOPASSWD: /usr/bin/systemctl poweroff" > "$TMP_SUDO"
+if visudo -cf "$TMP_SUDO" >/dev/null; then
+  install -m 440 "$TMP_SUDO" /etc/sudoers.d/semaforo-desligar
+else
+  echo "Aviso: não foi possível configurar o desligar automático."
+fi
+rm -f "$TMP_SUDO"
+
+# --- 11. Comandos auxiliares ----------------------------------------------------
+cat > /usr/local/bin/semaforo-vigia-desligar <<'EOF'
+#!/bin/sh
+# Desliga o PC quando o servidor local cria o ficheiro "desligar-agora" (pedido da página à hora marcada)
+F="$HOME/semaforo-dados/desligar-agora"
+rm -f "$F"
+while true; do
+  if [ -f "$F" ]; then
+    rm -f "$F"
+    sudo -n /usr/bin/systemctl poweroff
+  fi
+  sleep 2
+done
+EOF
+
 cat > /usr/local/bin/semaforo-ip <<'EOF'
 #!/bin/sh
 # Escreve o IP atual num ficheiro que a página do semáforo lê de 30 em 30 s
@@ -218,7 +251,8 @@ cat > /usr/local/bin/semaforo-atualizar-pagina <<EOF
 #!/bin/sh
 # Descarrega a versão mais recente da página do GitHub (corre no arranque, antes de abrir o ecrã).
 # Só substitui se o ficheiro vier completo; guarda a versão anterior em index.anterior.html.
-URL="$GITHUB/semaforo-sonoro-teste.html"
+URL_API="$GITHUB_API/semaforo-sonoro-teste.html?ref=main"
+URL_RAW="$GITHUB/semaforo-sonoro-teste.html"
 EOF
 cat >> /usr/local/bin/semaforo-atualizar-pagina <<'EOF'
 DEST="$HOME/semaforo/index.html"
@@ -227,7 +261,12 @@ LOG="$HOME/semaforo-dados/atualizacao.log"
 i=0
 while [ $i -lt 15 ] && ! ip route 2>/dev/null | grep -q '^default'; do sleep 1; i=$((i+1)); done
 TMP="$(mktemp)"
-if curl -fsSL --max-time 20 "$URL" -o "$TMP" \
+# 1.º o API do GitHub (funciona na escola); se falhar, o endereço direto
+descarregar() {
+  curl -fsSL --max-time 20 -H "Accept: application/vnd.github.raw" "$URL_API" -o "$TMP" \
+    || curl -fsSL --max-time 20 "$URL_RAW" -o "$TMP"
+}
+if descarregar \
    && [ "$(wc -c < "$TMP")" -gt 20000 ] \
    && grep -q 'SEMAFORO_PAGINA_OK' "$TMP" && grep -q '</html>' "$TMP"; then
   if cmp -s "$TMP" "$DEST"; then
@@ -302,11 +341,11 @@ chown $UTILIZADOR:$UTILIZADOR "$CASA/semaforo-dados/pin"; chmod 600 "$CASA/semaf
 echo "PIN alterado."
 EOF
 
-chmod +x /usr/local/bin/semaforo-ip /usr/local/bin/semaforo-atualizar-pagina /usr/local/bin/semaforo-audio \
+chmod +x /usr/local/bin/semaforo-ip /usr/local/bin/semaforo-vigia-desligar /usr/local/bin/semaforo-atualizar-pagina /usr/local/bin/semaforo-audio \
   /usr/local/bin/semaforo-pactl /usr/local/bin/semaforo-hdmi /usr/local/bin/semaforo-analogico \
   /usr/local/bin/semaforo-atualizar /usr/local/bin/semaforo-pin
 
-# --- 11. Arranque mais rápido (menu do GRUB quase invisível) --------------------
+# --- 12. Arranque mais rápido (menu do GRUB quase invisível) --------------------
 if [ -f /etc/default/grub ]; then
   sed -i 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=1/' /etc/default/grub
   update-grub || true
@@ -315,7 +354,7 @@ fi
 IP="$(hostname -I | awk '{print $1}')"
 echo
 echo "================================================================"
-echo " Instalação concluída (v4). Reinicia com:  sudo reboot"
+echo " Instalação concluída (v5). Reinicia com:  sudo reboot"
 echo " - O computador arranca diretamente para o semáforo."
 echo " - Telemóvel (na mesma rede):  http://$IP   (pede o PIN)"
 echo " - Em cada arranque a página atualiza-se sozinha a partir do GitHub."

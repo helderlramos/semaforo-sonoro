@@ -80,13 +80,20 @@
     justify-content:center;gap:4vh;background:var(--vermelho);color:#fff;text-align:center;padding:0 4vw;
     animation:piscarSil 1s steps(1) infinite}
   body.silencio #silencio{display:flex}
+  /* Aviso de "vai desligar" (por cima de tudo, menos das definições) */
+  #desligar{position:fixed;inset:0;z-index:27;display:none;flex-direction:column;align-items:center;
+    justify-content:center;gap:3vh;background:#1b1e23;color:#fff;text-align:center;padding:0 4vw}
+  body.desligar #desligar{display:flex}
+  #desTxt{font-size:clamp(28px,6vw,110px);font-weight:800;line-height:1.1}
+  #desCont{font-size:clamp(40px,12vw,220px);font-weight:900;font-variant-numeric:tabular-nums}
+  #desAjuda{font-size:clamp(16px,2.4vw,40px);opacity:.75}
   @keyframes piscarSil{50%{background:#fff;color:var(--vermelho)}}
   #silTxt{font-size:clamp(40px,11vw,220px);font-weight:900;line-height:1.05}
   #silCont{font-size:clamp(36px,9vw,180px);font-weight:800;font-variant-numeric:tabular-nums}
 
   /* Modo telemóvel (?remoto=1) */
   html.remoto, body.remoto{overflow:auto;height:auto;background:#15171b}
-  body.remoto #ecra, body.remoto #inicio, body.remoto #painel, body.remoto #silencio{display:none !important}
+  body.remoto #ecra, body.remoto #inicio, body.remoto #painel, body.remoto #silencio, body.remoto #desligar{display:none !important}
   #remoto{display:none;max-width:560px;margin:0 auto;padding:14px 14px 60px;color:#e8eaed;font-size:16px}
   body.remoto #remoto{display:block}
   #remoto h1{font-size:22px;margin:6px 0 12px}
@@ -131,6 +138,8 @@
 </div>
 
 <div id="silencio"><div id="silTxt">Fazer silêncio</div><div id="silCont">5:00</div></div>
+<div id="desligar"><div id="desTxt">O computador vai desligar-se</div><div id="desCont">1:00</div>
+  <div id="desAjuda">Tecla C (ou "Cancelar" no telemóvel) para não desligar</div></div>
 <div id="remoto"></div>
 
 <div id="inicio">
@@ -189,6 +198,14 @@
   <div class="info">Quando o alarme dispara, este ecrã tapa tudo, a piscar, com a contagem por baixo.
     Se voltar a haver barulho durante a contagem, o alarme toca de novo e a contagem recomeça
     (a "Pausa entre alarmes" não se aplica durante a contagem). Tecla <b>C</b> cancela.</div>
+
+  <h3>Desligar automaticamente</h3>
+  <label>Desligar às <span class="linha"><input type="time" id="desligar1Hora"><input type="checkbox" id="desligar1Ativo"></span></label>
+  <label>Desligar às <span class="linha"><input type="time" id="desligar2Hora"><input type="checkbox" id="desligar2Ativo"></span></label>
+  <label>Desligar às <span class="linha"><input type="time" id="desligar3Hora"><input type="checkbox" id="desligar3Ativo"></span></label>
+  <div class="info">A caixa à direita de cada hora ativa ou desativa esse momento. 1 minuto antes aparece um aviso
+    com contagem; a tecla <b>C</b> (ou "Cancelar" no telemóvel) cancela esse desligar. Se o alarme estiver a tocar,
+    espera que termine. Só funciona no PC do semáforo (Debian).</div>
 
   <h3>Som do alarme</h3>
   <label>Tocar som nas colunas <input type="checkbox" id="somTeste"></label>
@@ -267,7 +284,7 @@
      ?remoto=1   definições pelo telemóvel (servida pelo PC, com PIN)
      ?migrar=1   passa as definições antigas (guardadas no browser) para o PC
    ===================================================================== */
-const VERSAO = '2026-09-29';
+const VERSAO = '2026-10-01';
 const CHAVE = 'semaforo-sonoro-cfg-v1';        // NUNCA mudar (as definições gravadas usam este nome)
 const CHAVE_AUDIO = 'semaforo-sonoro-audio-v1';
 const CHAVE_EXTRA = 'semaforo-sonoro-extra-v1';
@@ -310,7 +327,9 @@ const DEF = {
   mostrarHora: true,
   mostrarIP: true,
   minGrafico: 60,
-  silencioAtivo: true, txtSilencio: 'Fazer silêncio', minutosSilencio: 5
+  silencioAtivo: true, txtSilencio: 'Fazer silêncio', minutosSilencio: 5,
+  desligar1Ativo: true, desligar1Hora: '11:30', desligar2Ativo: true, desligar2Hora: '15:00',
+  desligar3Ativo: true, desligar3Hora: '17:15'
 };
 let cfg = carregar();
 function carregar(){
@@ -643,7 +662,53 @@ function atualizarSilencio(agora){
   $('silCont').textContent = Math.floor(s/60) + ':' + String(s%60).padStart(2, '0');
 }
 // C (ou o telemóvel): cancela tudo — ecrã de silêncio, ecrã a piscar e som
-function cancelarTudo(){ cancelarSilencio(); pararAlarme(true); }
+function cancelarTudo(){ cancelarDesligar(); cancelarSilencio(); pararAlarme(true); }
+
+/* ---------- Desligar automaticamente (3 horas) ---------- */
+// Cada momento só atua uma vez por dia. Só desliga se o PC já estiver ligado antes da hora
+// (se for ligado depois, ignora esse momento) — janela: de 1 min antes até 2 min depois.
+const CHAVE_DESLIGAR = 'semaforo-sonoro-desligar-v1';
+let desligarFeito = { data: hoje(), n: [] };
+try { const o = JSON.parse(localStorage.getItem(CHAVE_DESLIGAR) || '{}'); if (o.data === hoje()) desligarFeito = { data: o.data, n: o.n || [] }; } catch(e){}
+function marcarDesligar(n){
+  if (desligarFeito.data !== hoje()) desligarFeito = { data: hoje(), n: [] };
+  if (!desligarFeito.n.includes(n)) desligarFeito.n.push(n);
+  try { localStorage.setItem(CHAVE_DESLIGAR, JSON.stringify(desligarFeito)); } catch(e){}
+}
+let desligarAlvo = 0, desligarN = 0, desligarPedido = false;   // desligarAlvo em ms (Date)
+function verificarDesligar(){
+  if (!COM_SERVIDOR) return;
+  const agora = Date.now();
+  if (desligarFeito.data !== hoje()) desligarFeito = { data: hoje(), n: [] };
+  if (!desligarAlvo){
+    for (const n of [1, 2, 3]){
+      if (!cfg['desligar' + n + 'Ativo'] || desligarFeito.n.includes(n)) continue;
+      const [h, m] = String(cfg['desligar' + n + 'Hora'] || '').split(':').map(Number);
+      if (!isFinite(h) || !isFinite(m)) continue;
+      const alvo = new Date(); alvo.setHours(h, m, 0, 0);
+      const t = alvo.getTime();
+      if (agora >= t - 60000 && agora < t + 120000){ desligarAlvo = Math.max(t, agora + 30000); desligarN = n; break; }
+      if (agora >= t + 120000) marcarDesligar(n);    // já passou (PC ligado depois): ignora hoje
+    }
+    if (!desligarAlvo) return;
+    document.body.classList.add('desligar');
+  }
+  const s = Math.ceil((desligarAlvo - agora) / 1000);
+  $('desCont').textContent = Math.max(0, Math.floor(s/60)) + ':' + String(Math.max(0, s%60)).padStart(2, '0');
+  if (s <= 0 && !desligarPedido){
+    if (somAtivo || alarmeAtivo){ $('desCont').textContent = '…'; return; }   // espera que o alarme termine
+    desligarPedido = true; marcarDesligar(desligarN);
+    $('desTxt').textContent = 'A desligar…';
+    fetch('/api/desligar', { method: 'POST' }).catch(() => {});
+  }
+}
+function cancelarDesligar(){
+  if (!desligarAlvo) return;
+  marcarDesligar(desligarN);
+  desligarAlvo = 0; desligarPedido = false;
+  document.body.classList.remove('desligar');
+  $('desTxt').textContent = 'O computador vai desligar-se';
+}
 
 /* Ficheiro de áudio próprio (guardado neste browser e, com servidor, também no PC) */
 let bufferFicheiro = null, nomeFicheiro = '';
@@ -710,6 +775,7 @@ function tick(agora){
 
   atualizarRelogio();
   atualizarSilencio(agora);
+  verificarDesligar();
   if (alarmeAtivo && agora >= alarmeAte) pararAlarme();
   if (somAtivo && agora >= somAte){        // o som terminou sozinho
     somAtivo = null; retomarMedicao(agora);
@@ -886,8 +952,8 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 /* ---------- Painel de definições ---------- */
 const CAMPOS_NUM = ['offset','janela','limLaranja','limVermelho','histerese','atrasoAlarme','duracaoAlarme','pausaAlarme','minutosExtra','minGrafico','minutosSilencio'];
-const CAMPOS_TXT = ['txtVerde','txtLaranja','txtVermelho','frase','horaAlvo','txtContador','txtFimContador','txtSilencio'];
-const CAMPOS_CHK = ['somTeste','mostrarGrafico','mostrarEstat','mostrarFrase','mostrarContador','mostrarHora','acrescentarTempo','mostrarIP','silencioAtivo'];
+const CAMPOS_TXT = ['txtVerde','txtLaranja','txtVermelho','frase','horaAlvo','txtContador','txtFimContador','txtSilencio','desligar1Hora','desligar2Hora','desligar3Hora'];
+const CAMPOS_CHK = ['somTeste','mostrarGrafico','mostrarEstat','mostrarFrase','mostrarContador','mostrarHora','acrescentarTempo','mostrarIP','silencioAtivo','desligar1Ativo','desligar2Ativo','desligar3Ativo'];
 
 function preencherPainel(){
   CAMPOS_NUM.forEach(k => $(k).value = cfg[k]);
@@ -1053,7 +1119,8 @@ async function sincronizar(){
       versao: VERSAO, db: isFinite(dbAtual) ? Math.round(dbAtual*10)/10 : null, estado,
       silencio: silencioAte > agora ? Math.ceil((silencioAte - agora)/1000) : 0,
       alarme: alarmeAtivo, pausada: medicaoPausada, alarmes: est.alarmes,
-      tempoExtra: extra.s, offset: cfg.offset, iniciado: !!stream
+      tempoExtra: extra.s, offset: cfg.offset, iniciado: !!stream,
+      desligar: desligarAlvo ? Math.max(0, Math.ceil((desligarAlvo - Date.now())/1000)) : 0
     };
     const r = await fetch('/api/sync', { method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ rev: revServidor, ultimoCmd, estado: estadoAtual }) });
@@ -1109,6 +1176,9 @@ const SECCOES = [
               ['somAlarme','Som','sel',[['carrilhao','Carrilhão 3 notas'],['dingdong','Ding-dong'],['marimba','Marimba'],['sino','Sino suave'],
                                          ['taca','Taça tibetana'],['gongo','Gongo'],['ficheiro','Ficheiro próprio (escolhido no PC)'],['sirene','Sirene']]],
               ['repeticoes','Repetições','num',1], ['intervaloRep','Intervalo entre repetições (s)','num',0.5], ['volumeAlarme','Volume','rng']]],
+  ['Desligar automaticamente', [['desligar1Ativo','1.º momento ativo','chk'], ['desligar1Hora','1.º momento','time'],
+            ['desligar2Ativo','2.º momento ativo','chk'], ['desligar2Hora','2.º momento','time'],
+            ['desligar3Ativo','3.º momento ativo','chk'], ['desligar3Hora','3.º momento','time']]],
   ['Ecrã', [['txtVerde','Texto verde','txt'], ['txtLaranja','Texto laranja','txt'], ['txtVermelho','Texto vermelho','txt'],
             ['mostrarGrafico','Mostrar gráfico','chk'], ['minGrafico','Duração do gráfico (min)','num',1],
             ['mostrarEstat','Mostrar estatísticas','chk'], ['mostrarIP','Mostrar IP','chk']]],
@@ -1163,7 +1233,7 @@ async function carregar(){
     <div id="rEstado" class="estadoCaixa">A ligar ao ecrã…</div>
     <div class="botoes">
       <button id="rTestar">▶ Testar alarme</button>
-      <button id="rCancelar">■ Cancelar alarme</button>
+      <button id="rCancelar">■ Cancelar alarme / desligar</button>
       <button id="rExtra">Repor tempo extra</button>
       <button id="rRecarregar">↻ Recarregar</button>
     </div>` +
@@ -1206,6 +1276,7 @@ async function carregar(){
       let t = (s.db != null ? s.db.toFixed(0) + ' dB · ' : '') + (nomes[s.estado] || '—');
       if (!s.iniciado) t = 'Ecrã ligado, medição parada';
       if (s.pausada) t += ' · alarme a tocar';
+      if (s.desligar > 0) t += ` · a desligar em ${Math.floor(s.desligar/60)}:${String(s.desligar%60).padStart(2,'0')}`;
       if (s.silencio > 0) t += ` · "Fazer silêncio" ${Math.floor(s.silencio/60)}:${String(s.silencio%60).padStart(2,'0')}`;
       caixa.innerHTML = esc(t) + `<div class="nota" style="color:inherit;opacity:.8">alarmes: ${esc(s.alarmes)} · versão ${esc(s.versao)}</div>`;
     } catch(err){ caixa.className = 'estadoCaixa'; caixa.textContent = err.pin ? 'PIN errado.' : 'Sem ligação ao PC do semáforo.'; }
